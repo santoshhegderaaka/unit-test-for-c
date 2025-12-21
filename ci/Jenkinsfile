@@ -6,9 +6,8 @@ pipeline {
         NVM_DIR = "${env.HOME}/.nvm"
         BUILD_DIR = "build"
         BIN_NAME = "demo-app"
-        DEPLOY_DIR = "/var/lib/jenkins/apps/demo-project"
+        DEPLOY_DIR = "/var/lib/jenkins/apps/demo-project-c"
         TEST_REPORT_DIR = "test-reports"
-        NVM_DIR = "${env.HOME}/.nvm"
         NODE_VERSION = "22"
     }
 
