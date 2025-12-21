@@ -84,7 +84,7 @@ stage('Setup Node 22') {
 
   node -v
   npm -v
-export COPILOT_MODEL=default
+export COPILOT_MODEL=GPT-5 mini
 export CI=true
 
   chmod +x scripts/generate-spec-tests.sh
