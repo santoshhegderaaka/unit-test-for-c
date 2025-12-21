@@ -30,10 +30,11 @@ gh auth status
 # ----------------------------------
 # Install Copilot CLI (latest)
 # ----------------------------------
-echo "📦 Installing GitHub Copilot CLI..."
-npm uninstall -g @github/copilot >/dev/null 2>&1 || true
-npm install -g @github/copilot
-copilot -v
+
+#echo "📦 Installing GitHub Copilot CLI..."
+#npm uninstall -g @github/copilot >/dev/null 2>&1 || true
+#npm install -g @github/copilot
+#copilot -v
 
 # ----------------------------------
 # Project config
