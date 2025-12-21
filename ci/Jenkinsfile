@@ -6,6 +6,7 @@ pipeline {
         BUILD_DIR = "build"
         BIN_NAME = "demo-app"
         DEPLOY_DIR = "/var/lib/jenkins/apps/demo-project"
+        TEST_REPORT_DIR = "test-reports"
     }
 
     stages {
@@ -20,14 +21,23 @@ pipeline {
             steps {
                 sh '''
                   set -e
-                  echo "Installing GCC and build essentials..."
-
                   if ! command -v gcc >/dev/null 2>&1; then
                     sudo apt-get update
                     sudo apt-get install -y build-essential
                   fi
-
                   gcc --version
+                '''
+            }
+        }
+
+        stage('Generate Unit Tests') {
+            when {
+                expression { fileExists('scripts/generate-spec-tests.sh') }
+            }
+            steps {
+                sh '''
+                  chmod +x scripts/generate-spec-tests.sh
+                  scripts/generate-spec-tests.sh
                 '''
             }
         }
@@ -35,8 +45,36 @@ pipeline {
         stage('Prepare Build Directory') {
             steps {
                 sh '''
-                  rm -rf ${BUILD_DIR}
-                  mkdir -p ${BUILD_DIR}
+                  rm -rf ${BUILD_DIR} ${TEST_REPORT_DIR}
+                  mkdir -p ${BUILD_DIR} ${TEST_REPORT_DIR}
+                '''
+            }
+        }
+
+        stage('Compile & Run Unit Tests') {
+            steps {
+                sh '''
+                  set -e
+                  echo "Running unit tests..."
+
+                  for TEST_FILE in test/*.test.c; do
+                    TEST_NAME=$(basename ${TEST_FILE%.c})
+                    TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
+
+                    gcc -Wall -Wextra -I./src \
+                      "$TEST_FILE" src/queue.c src/task_manager.c \
+                      -o "$TEST_BIN"
+
+                    echo "Executing $TEST_BIN"
+                    "$TEST_BIN"
+
+                    cat > ${TEST_REPORT_DIR}/${TEST_NAME}.xml <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="${TEST_NAME}" tests="1" failures="0">
+  <testcase classname="${TEST_NAME}" name="AllTestsPassed"/>
+</testsuite>
+EOF
+                  done
                 '''
             }
         }
@@ -44,46 +82,22 @@ pipeline {
         stage('Compile Application') {
             steps {
                 sh '''
-                  echo "Compiling C application..."
-
                   gcc -Wall -Wextra -I./src \
-                    src/*.c \
+                    src/main.c src/queue.c src/task_manager.c \
                     -o ${BUILD_DIR}/${BIN_NAME}
-
-                  echo "Binary created: ${BUILD_DIR}/${BIN_NAME}"
                 '''
             }
         }
 
-        stage('Compile & Run Unit Tests') {
-            when {
-                expression { fileExists('test') }
-            }
+        stage('Publish Test Results') {
             steps {
-                sh '''
-                  echo "Compiling and running unit tests..."
-
-                  for TEST_FILE in test/*.test.c; do
-                    TEST_BIN="${BUILD_DIR}/$(basename ${TEST_FILE%.c})"
-
-                    gcc -Wall -Wextra -I./src \
-                      "$TEST_FILE" src/*.c \
-                      -o "$TEST_BIN"
-
-                    echo "Running $TEST_BIN"
-                    "$TEST_BIN"
-                  done
-
-                  echo "All unit tests passed"
-                '''
+                junit allowEmptyResults: false, testResults: 'test-reports/*.xml'
             }
         }
 
         stage('Deploy (Local)') {
             steps {
                 sh '''
-                  echo "Deploying C application locally..."
-
                   mkdir -p ${DEPLOY_DIR}
 
                   rsync -av --delete \
@@ -94,24 +108,19 @@ pipeline {
 
                   cp ${BUILD_DIR}/${BIN_NAME} ${DEPLOY_DIR}/
 
-                  echo "Stopping existing process (if any)..."
                   pkill -f ${BIN_NAME} || true
-
-                  echo "Starting application..."
                   nohup ${DEPLOY_DIR}/${BIN_NAME} > ${DEPLOY_DIR}/app.log 2>&1 &
-
-                  echo "Application deployed and started successfully"
                 '''
             }
         }
     }
 
     post {
-        always {
-            echo "Pipeline completed"
+        success {
+            echo "✅ Build, Test, and Deploy completed successfully"
         }
         failure {
-            echo "Pipeline failed"
+            echo "❌ Pipeline failed"
         }
     }
 }
