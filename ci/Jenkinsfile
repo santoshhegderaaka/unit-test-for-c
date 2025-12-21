@@ -1,0 +1,179 @@
+pipeline {
+    agent any
+
+    environment {
+        CI = "true"
+        NVM_DIR = "${env.HOME}/.nvm"
+        NODE_VERSION = "22"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install nvm (if not exists)') {
+            steps {
+                sh '''
+                  set -e
+
+                  if [ ! -d "$NVM_DIR" ]; then
+                    echo "Installing nvm..."
+                    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+                  else
+                    echo "nvm already installed"
+                  fi
+
+                  export NVM_DIR="$HOME/.nvm"
+                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+                  nvm --version
+                '''
+            }
+        }
+
+        stage('Install & Use Node v22') {
+            steps {
+                sh '''
+                  export NVM_DIR="$HOME/.nvm"
+                  . "$NVM_DIR/nvm.sh"
+
+                  nvm install ${NODE_VERSION}
+                  nvm use ${NODE_VERSION}
+
+                  node -v
+                  npm -v
+                '''
+            }
+        }
+
+        stage('Install Project Dependencies (incl. Jest)') {
+            steps {
+                sh '''
+                  export NVM_DIR="$HOME/.nvm"
+                  . "$NVM_DIR/nvm.sh"
+                  nvm use ${NODE_VERSION}
+
+                  npm ci
+
+                  if ! npx jest --version > /dev/null 2>&1; then
+                    echo "Installing Jest..."
+                    npm install --save-dev jest
+                  fi
+
+                  npx jest --version
+                '''
+            }
+        }
+
+        stage('Generate Unit Tests (.spec.js)') {
+            when {
+                expression { fileExists('scripts/generate-spec-tests.sh') }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'github-copilot-token', variable: 'COPILOT_TOKEN'),
+                    string(credentialsId: 'github-push-token', variable: 'PUSH_TOKEN')
+                ]) {
+                    sh '''
+                      export NVM_DIR="/var/lib/jenkins/.nvm"
+                      . "$NVM_DIR/nvm.sh"
+                      nvm use ${NODE_VERSION}
+
+                      #FIX: keep real HOME, move npm cache only
+                      export HOME=/var/lib/jenkins
+                      export npm_config_cache=$WORKSPACE/.npm
+
+                      echo "Fixing permissions..."
+                      chown -R $(whoami):$(whoami) . || true
+                      chmod -R u+rwX . || true
+                      chmod +x node_modules/.bin/* || true
+
+                      chmod +x scripts/generate-spec-tests.sh
+                      bash scripts/generate-spec-tests.sh "\$COPILOT_TOKEN" "\$PUSH_TOKEN"
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests & Coverage') {
+            steps {
+                sh '''
+                  export NVM_DIR="/var/lib/jenkins/.nvm"
+                  . "$NVM_DIR/nvm.sh"
+                  nvm use ${NODE_VERSION}
+
+                  #FIX: keep real HOME, move npm cache only
+                  export HOME=/var/lib/jenkins
+                  export npm_config_cache=$WORKSPACE/.npm
+
+                  chown -R $(whoami):$(whoami) . || true
+                  chmod -R u+rwX . || true
+                  chmod +x node_modules/.bin/* || true
+
+                  npm test -- --coverage || npx jest --coverage
+                '''
+            }
+        }
+
+        stage('Publish Reports') {
+            steps {
+                junit allowEmptyResults: true, testResults: '**/junit*.xml'
+                publishHTML([
+                    reportName: 'Jest Coverage Report',
+                    reportDir: 'coverage/lcov-report',
+                    reportFiles: 'index.html',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: true
+                ])
+            }
+        }
+
+                       stage('Deploy (Local)') {
+            steps {
+                sh '''
+                  echo "Deploying application locally..."
+
+                  DEPLOY_DIR=/var/lib/jenkins/apps/demo-project
+
+                  mkdir -p $DEPLOY_DIR
+
+                  rsync -av --delete \
+                    --exclude=node_modules \
+                    --exclude=.git \
+                    --exclude=coverage \
+                    ./ $DEPLOY_DIR/
+
+                  cd $DEPLOY_DIR
+
+                  export NVM_DIR="/var/lib/jenkins/.nvm"
+                  . "$NVM_DIR/nvm.sh"
+                  nvm use ${NODE_VERSION}
+
+                  npm ci --omit=dev
+
+                  echo "Stopping existing app (if any)..."
+                  pkill -f "node.*demo-project" || true
+                  pkill -f "npm start" || true
+
+                  echo "Starting app with npm start..."
+                  nohup npm start > app.log 2>&1 &
+
+                  echo "App deployed and started successfully"
+                '''
+            }
+        }
+
+
+    }
+
+   /* post {
+        always {
+            cleanWs()
+        }
+    }*/
+}
