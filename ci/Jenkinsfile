@@ -31,6 +31,41 @@ pipeline {
                 '''
             }
         }
+        stage('Install nvm (if not exists)') {
+            steps {
+                sh '''
+                  set -e
+
+                  if [ ! -d "$NVM_DIR" ]; then
+                    echo "Installing nvm..."
+                    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+                  else
+                    echo "nvm already installed"
+                  fi
+
+                  export NVM_DIR="$HOME/.nvm"
+                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
+                  nvm --version
+                '''
+            }
+        }
+
+        stage('Install & Use Node v22') {
+            steps {
+                sh '''
+                  export NVM_DIR="$HOME/.nvm"
+                  . "$NVM_DIR/nvm.sh"
+
+                  nvm install ${NODE_VERSION}
+                  nvm use ${NODE_VERSION}
+
+                  node -v
+                  npm -v
+                '''
+            }
+        }
+
 
         stage('Generate Unit Tests') {
             when {
