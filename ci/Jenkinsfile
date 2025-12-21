@@ -3,8 +3,9 @@ pipeline {
 
     environment {
         CI = "true"
-        NVM_DIR = "${env.HOME}/.nvm"
-        NODE_VERSION = "22"
+        BUILD_DIR = "build"
+        BIN_NAME = "demo-app"
+        DEPLOY_DIR = "/var/lib/jenkins/apps/demo-project"
     }
 
     stages {
@@ -15,165 +16,102 @@ pipeline {
             }
         }
 
-        stage('Install nvm (if not exists)') {
+        stage('Install Build Tools') {
             steps {
                 sh '''
                   set -e
+                  echo "Installing GCC and build essentials..."
 
-                  if [ ! -d "$NVM_DIR" ]; then
-                    echo "Installing nvm..."
-                    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                  else
-                    echo "nvm already installed"
+                  if ! command -v gcc >/dev/null 2>&1; then
+                    sudo apt-get update
+                    sudo apt-get install -y build-essential
                   fi
 
-                  export NVM_DIR="$HOME/.nvm"
-                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-
-                  nvm --version
+                  gcc --version
                 '''
             }
         }
 
-        stage('Install & Use Node v22') {
+        stage('Prepare Build Directory') {
             steps {
                 sh '''
-                  export NVM_DIR="$HOME/.nvm"
-                  . "$NVM_DIR/nvm.sh"
-
-                  nvm install ${NODE_VERSION}
-                  nvm use ${NODE_VERSION}
-
-                  node -v
-                  npm -v
+                  rm -rf ${BUILD_DIR}
+                  mkdir -p ${BUILD_DIR}
                 '''
             }
         }
 
-        stage('Install Project Dependencies (incl. Jest)') {
+        stage('Compile Application') {
             steps {
                 sh '''
-                  export NVM_DIR="$HOME/.nvm"
-                  . "$NVM_DIR/nvm.sh"
-                  nvm use ${NODE_VERSION}
+                  echo "Compiling C application..."
 
-                  npm ci
+                  gcc -Wall -Wextra -I./src \
+                    src/*.c \
+                    -o ${BUILD_DIR}/${BIN_NAME}
 
-                  if ! npx jest --version > /dev/null 2>&1; then
-                    echo "Installing Jest..."
-                    npm install --save-dev jest
-                  fi
-
-                  npx jest --version
+                  echo "Binary created: ${BUILD_DIR}/${BIN_NAME}"
                 '''
             }
         }
 
-        stage('Generate Unit Tests (.spec.js)') {
+        stage('Compile & Run Unit Tests') {
             when {
-                expression { fileExists('scripts/generate-spec-tests.sh') }
+                expression { fileExists('test') }
             }
-            steps {
-                withCredentials([
-                    string(credentialsId: 'github-copilot-token', variable: 'COPILOT_TOKEN'),
-                    string(credentialsId: 'github-push-token', variable: 'PUSH_TOKEN')
-                ]) {
-                    sh '''
-                      export NVM_DIR="/var/lib/jenkins/.nvm"
-                      . "$NVM_DIR/nvm.sh"
-                      nvm use ${NODE_VERSION}
-
-                      #FIX: keep real HOME, move npm cache only
-                      export HOME=/var/lib/jenkins
-                      export npm_config_cache=$WORKSPACE/.npm
-
-                      echo "Fixing permissions..."
-                      chown -R $(whoami):$(whoami) . || true
-                      chmod -R u+rwX . || true
-                      chmod +x node_modules/.bin/* || true
-
-                      chmod +x scripts/generate-spec-tests.sh
-                      bash scripts/generate-spec-tests.sh "\$COPILOT_TOKEN" "\$PUSH_TOKEN"
-                    '''
-                }
-            }
-        }
-
-        stage('Run Tests & Coverage') {
             steps {
                 sh '''
-                  export NVM_DIR="/var/lib/jenkins/.nvm"
-                  . "$NVM_DIR/nvm.sh"
-                  nvm use ${NODE_VERSION}
+                  echo "Compiling and running unit tests..."
 
-                  #FIX: keep real HOME, move npm cache only
-                  export HOME=/var/lib/jenkins
-                  export npm_config_cache=$WORKSPACE/.npm
+                  for TEST_FILE in test/*.test.c; do
+                    TEST_BIN="${BUILD_DIR}/$(basename ${TEST_FILE%.c})"
 
-                  chown -R $(whoami):$(whoami) . || true
-                  chmod -R u+rwX . || true
-                  chmod +x node_modules/.bin/* || true
+                    gcc -Wall -Wextra -I./src \
+                      "$TEST_FILE" src/*.c \
+                      -o "$TEST_BIN"
 
-                  npm test -- --coverage || npx jest --coverage
+                    echo "Running $TEST_BIN"
+                    "$TEST_BIN"
+                  done
+
+                  echo "All unit tests passed"
                 '''
             }
         }
 
-        stage('Publish Reports') {
-            steps {
-                junit allowEmptyResults: true, testResults: '**/junit*.xml'
-                publishHTML([
-                    reportName: 'Jest Coverage Report',
-                    reportDir: 'coverage/lcov-report',
-                    reportFiles: 'index.html',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: true
-                ])
-            }
-        }
-
-                       stage('Deploy (Local)') {
+        stage('Deploy (Local)') {
             steps {
                 sh '''
-                  echo "Deploying application locally..."
+                  echo "Deploying C application locally..."
 
-                  DEPLOY_DIR=/var/lib/jenkins/apps/demo-project
-
-                  mkdir -p $DEPLOY_DIR
+                  mkdir -p ${DEPLOY_DIR}
 
                   rsync -av --delete \
-                    --exclude=node_modules \
                     --exclude=.git \
-                    --exclude=coverage \
-                    ./ $DEPLOY_DIR/
+                    --exclude=test \
+                    --exclude=build \
+                    ./ ${DEPLOY_DIR}/
 
-                  cd $DEPLOY_DIR
+                  cp ${BUILD_DIR}/${BIN_NAME} ${DEPLOY_DIR}/
 
-                  export NVM_DIR="/var/lib/jenkins/.nvm"
-                  . "$NVM_DIR/nvm.sh"
-                  nvm use ${NODE_VERSION}
+                  echo "Stopping existing process (if any)..."
+                  pkill -f ${BIN_NAME} || true
 
-                  npm ci --omit=dev
+                  echo "Starting application..."
+                  nohup ${DEPLOY_DIR}/${BIN_NAME} > ${DEPLOY_DIR}/app.log 2>&1 &
 
-                  echo "Stopping existing app (if any)..."
-                  pkill -f "node.*demo-project" || true
-                  pkill -f "npm start" || true
-
-                  echo "Starting app with npm start..."
-                  nohup npm start > app.log 2>&1 &
-
-                  echo "App deployed and started successfully"
+                  echo "Application deployed and started successfully"
                 '''
             }
         }
-
-
     }
 
-   /* post {
+    post {
         always {
-            cleanWs()
+            echo "Pipeline completed"
         }
-    }*/
+        failure {
+            echo "Pipeline failed"
+        }
+    }
 }
