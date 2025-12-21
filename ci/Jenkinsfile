@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         CI = "true"
+        NVM_DIR = "${env.HOME}/.nvm"
         BUILD_DIR = "build"
         BIN_NAME = "demo-app"
         DEPLOY_DIR = "/var/lib/jenkins/apps/demo-project"
