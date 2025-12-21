@@ -75,7 +75,7 @@ stage('Setup Node 22') {
                     string(credentialsId: 'github-copilot-token', variable: 'COPILOT_TOKEN'),
                     string(credentialsId: 'github-push-token', variable: 'PUSH_TOKEN')
                 ]) {
-                sh sh '''
+                sh '''
   export NVM_DIR="$HOME/.nvm"
   . "$NVM_DIR/nvm.sh"
 
