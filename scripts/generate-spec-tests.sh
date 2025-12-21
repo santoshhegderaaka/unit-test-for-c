@@ -30,7 +30,8 @@ find "$SRC_DIR" -name "*.c" | while read -r FILE; do
   TEST_FILE="$TEST_DIR/${BASENAME}.test.c"
 
 
-  copilot -p "Project uses plain C compiled with GCC.
+  copilot -p "Use model: GPT-5 mini 
+  Project uses plain C compiled with GCC.
 Source: $FILE
 Target: $TEST_FILE
 Task:
