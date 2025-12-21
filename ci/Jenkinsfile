@@ -35,10 +35,15 @@ pipeline {
                 expression { fileExists('scripts/generate-spec-tests.sh') }
             }
             steps {
+                withCredentials([
+                    string(credentialsId: 'github-copilot-token', variable: 'COPILOT_TOKEN'),
+                    string(credentialsId: 'github-push-token', variable: 'PUSH_TOKEN')
+                ]) {
                 sh '''
                   chmod +x scripts/generate-spec-tests.sh
-                  scripts/generate-spec-tests.sh
+                  bash scripts/generate-spec-tests.sh "\$COPILOT_TOKEN" "\$PUSH_TOKEN"
                 '''
+                }
             }
         }
 
