@@ -97,7 +97,6 @@ stage('Compile & Run Unit Tests with Coverage') {
           echo "📂 Contents of test directory:"
           ls -l test
 
-          # Pick the generated test file safely
           TEST_FILE=$(ls test/*.test.c 2>/dev/null | head -n 1)
 
           if [ -z "$TEST_FILE" ]; then
@@ -128,9 +127,11 @@ stage('Compile & Run Unit Tests with Coverage') {
             --directory . \
             --output-file "$COVERAGE_DIR/coverage.info"
 
+          echo "🧹 Cleaning coverage report..."
           lcov --remove "$COVERAGE_DIR/coverage.info" \
             '/usr/*' \
             '*/test/*' \
+            --ignore-errors unused \
             --output-file "$COVERAGE_DIR/coverage.cleaned.info"
 
           genhtml "$COVERAGE_DIR/coverage.cleaned.info" \
