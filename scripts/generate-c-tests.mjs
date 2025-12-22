@@ -156,11 +156,11 @@ async function main() {
   console.log(`${JSON.stringify(args)}`);
   //const token = args.token;
   const srcPath = args.src;
-  const outPath = args.out || "test/test_generated.c";
+  const outPath = args.out || "test/test_generated.test.c";
   const hdrPathArg = args.hdr;
 
   if (!srcPath) {
-    console.error("Missing --src. Example: node generate-c-tests.mjs --src src/task_manager.c --out test/test_task_manager.c");
+    console.error("Missing --src. Example: node generate-c-tests.mjs --src src/task_manager.c --out test/test_task_manager.test.c");
     process.exit(2);
   }
 
