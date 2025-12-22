@@ -154,7 +154,7 @@ function buildUserPrompt({ srcPath, srcText, hdrPath, hdrText, outPath }) {
 async function main() {
   const args = parseArgs(process.argv);
   console.log(`${JSON.stringify(args)}`);
-  const token = args.token;
+  //const token = args.token;
   const srcPath = args.src;
   const outPath = args.out || "tests/test_generated.c";
   const hdrPathArg = args.hdr;
@@ -164,7 +164,7 @@ async function main() {
     process.exit(2);
   }
 
-  //const token = process.env.GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN;
   if (!token) {
     console.error("Missing env GITHUB_TOKEN (needs models:read permission).");
     process.exit(2);
