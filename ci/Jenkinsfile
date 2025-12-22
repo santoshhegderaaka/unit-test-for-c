@@ -19,18 +19,25 @@ pipeline {
             }
         }
 
-        stage('Install Build Tools') {
-            steps {
-                sh '''
-                  set -e
-                  if ! command -v gcc >/dev/null 2>&1; then
-                    sudo apt-get update
-                    sudo apt-get install -y build-essential
-                  fi
-                  gcc --version
-                '''
-            }
-        }
+       stage('Install Build Tools') {
+    steps {
+        sh '''
+          set -e
+          if ! command -v gcc >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y build-essential lcov
+          fi
+
+          if ! command -v lcov >/dev/null 2>&1; then
+            sudo apt-get install -y lcov
+          fi
+
+          gcc --version
+          lcov --version
+        '''
+    }
+}
+
         stage('Install nvm (if not exists)') {
             steps {
                 sh '''
@@ -101,33 +108,56 @@ stage('Setup Node 22') {
             }
         }
 
-        stage('Compile & Run Unit Tests') {
-            steps {
-                sh '''
-                  set -e
-                  echo "Running unit tests..."
+       stage('Compile & Run Unit Tests with Coverage') {
+    steps {
+        sh '''
+          set -e
+          echo "Running unit tests with coverage..."
 
-                  for TEST_FILE in test/*.test.c; do
-                    TEST_NAME=$(basename ${TEST_FILE%.c})
-                    TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
+          TEST_FILE="test/task_manager.test.c"
+          TEST_NAME="task_manager"
+          TEST_BIN="${BUILD_DIR}/${TEST_NAME}.test"
+          COVERAGE_DIR="coverage"
 
-                    gcc -Wall -Wextra -I./src \
-                      "$TEST_FILE" src/queue.c src/task_manager.c \
-                      -o "$TEST_BIN"
+          rm -rf ${COVERAGE_DIR}
+          mkdir -p ${COVERAGE_DIR}
 
-                    echo "Executing $TEST_BIN"
-                    "$TEST_BIN"
+          echo "Compiling with coverage flags..."
 
-                    cat > ${TEST_REPORT_DIR}/${TEST_NAME}.xml <<EOF
+          gcc -Wall -Wextra -I./src \
+            --coverage \
+            "$TEST_FILE" src/task_manager.c src/queue.c \
+            -o "$TEST_BIN"
+
+          echo "Executing test binary..."
+          "$TEST_BIN"
+
+          echo "Capturing coverage data..."
+
+          lcov --capture \
+               --directory . \
+               --output-file ${COVERAGE_DIR}/coverage.info
+
+          lcov --remove ${COVERAGE_DIR}/coverage.info \
+               '/usr/*' \
+               '*test*' \
+               --output-file ${COVERAGE_DIR}/coverage.filtered.info
+
+          genhtml ${COVERAGE_DIR}/coverage.filtered.info \
+                  --output-directory ${COVERAGE_DIR}/html
+
+          echo "Generating JUnit report..."
+
+          cat > ${TEST_REPORT_DIR}/${TEST_NAME}.xml <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="${TEST_NAME}" tests="1" failures="0">
-  <testcase classname="${TEST_NAME}" name="AllTestsPassed"/>
+<testsuite name="task_manager_tests" tests="1" failures="0">
+  <testcase classname="task_manager" name="AllTestsPassed"/>
 </testsuite>
 EOF
-                  done
-                '''
-            }
-        }
+        '''
+    }
+}
+
 
         stage('Compile Application') {
             steps {
@@ -139,11 +169,19 @@ EOF
             }
         }
 
-        stage('Publish Test Results') {
-            steps {
-                junit allowEmptyResults: false, testResults: 'test-reports/*.xml'
-            }
-        }
+      stage('Publish Coverage Report') {
+    steps {
+        publishHTML([
+            reportName: 'C Coverage Report',
+            reportDir: 'coverage/html',
+            reportFiles: 'index.html',
+            keepAll: true,
+            alwaysLinkToLastBuild: true,
+            allowMissing: false
+        ])
+    }
+}
+
 
         stage('Deploy (Local)') {
             steps {
