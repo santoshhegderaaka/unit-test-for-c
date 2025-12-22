@@ -163,14 +163,15 @@ stage('Setup Node 22') {
             }
         }
 
-  stage('Publish Coverage Report') {
+stage('Publish Coverage Report') {
     steps {
         publishHTML([
+            allowMissing: false,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
             reportDir: 'coverage/html',
             reportFiles: 'index.html',
-            reportName: 'C Coverage Report',
-            keepAll: true,
-            alwaysLinkToLastBuild: true
+            reportName: 'C Coverage Report'
         ])
     }
 }
