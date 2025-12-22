@@ -122,7 +122,7 @@ stage('Setup Node 22') {
 
           gcc -Wall -Wextra -I./src \
             --coverage \
-            "$TEST_FILE" src/task_manager.c src/queue.c \
+            "$TEST_FILE" src/task_manager.c \
             -o "$TEST_BIN"
 
           echo "Executing test binary..."
