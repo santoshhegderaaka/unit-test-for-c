@@ -19,27 +19,19 @@ pipeline {
             }
         }
 
-   stage('Install Build Tools') {
+   stage('Verify Build Tools') {
     steps {
         sh '''
           set -e
-          echo "Verifying required build tools..."
-
-          command -v gcc >/dev/null 2>&1 || {
-            echo "❌ gcc not found. Please install build-essential on the Jenkins agent."
-            exit 1
-          }
-
-          command -v lcov >/dev/null 2>&1 || {
-            echo "❌ lcov not found. Please install lcov on the Jenkins agent."
-            exit 1
-          }
-
+          command -v gcc
+          command -v lcov
+          command -v gcov
           gcc --version
           lcov --version
         '''
     }
 }
+
 
 
         stage('Install nvm (if not exists)') {
