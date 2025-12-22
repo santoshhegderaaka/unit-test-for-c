@@ -153,6 +153,7 @@ function buildUserPrompt({ srcPath, srcText, hdrPath, hdrText, outPath }) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  console.log(`${JSON.stringify(args)}`);
   const token = args.token;
   const srcPath = args.src;
   const outPath = args.out || "tests/test_generated.c";
