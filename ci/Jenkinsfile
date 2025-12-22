@@ -68,12 +68,11 @@ stage('Setup Node 22') {
 
         stage('Generate Unit Tests') {
             when {
-                expression { fileExists('scripts/generate-spec-tests.sh') }
+                expression { fileExists('scripts/generate-c-tests.mjs') }
             }
             steps {
                 withCredentials([
-                    string(credentialsId: 'github-copilot-token', variable: 'COPILOT_TOKEN'),
-                    string(credentialsId: 'github-push-token', variable: 'PUSH_TOKEN')
+                    string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')
                 ]) {
                 sh '''
   export NVM_DIR="$HOME/.nvm"
