@@ -88,7 +88,7 @@ export COPILOT_MODEL=GPT-5 mini
 export CI=true
 
   chmod +x scripts/generate-spec-tests.sh
-  bash scripts/generate-spec-tests.sh "\$COPILOT_TOKEN" "\$PUSH_TOKEN"
+  node src/generate-c-tests.mjs --src src/task_manager.c --token "\$COPILOT_TOKEN" "\$PUSH_TOKEN"
 '''
                 }
             }
