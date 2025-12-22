@@ -88,56 +88,59 @@ pipeline {
             }
         }
 
-        stage('Compile & Run Unit Tests with Coverage') {
-            steps {
-                sh '''
-                  set -e
-                  echo "Running unit tests with coverage..."
+stage('Compile & Run Unit Tests with Coverage') {
+    steps {
+        sh '''
+          set -e
+          echo "Running unit tests with coverage..."
 
-                  echo "📂 Contents of test directory:"
-                  ls -l test || true
+          echo "📂 Contents of test directory:"
+          ls -l test
 
-                  TEST_FILE=$(ls test/*.c 2>/dev/null | grep task_manager | head -n 1)
+          # Pick the generated test file safely
+          TEST_FILE=$(ls test/*.test.c 2>/dev/null | head -n 1)
 
-                  if [ -z "$TEST_FILE" ]; then
-                    echo "❌ task_manager test file not found"
-                    exit 1
-                  fi
+          if [ -z "$TEST_FILE" ]; then
+            echo "❌ No generated .test.c file found"
+            exit 1
+          fi
 
-                  echo "✅ Using test file: $TEST_FILE"
+          echo "✅ Using test file: $TEST_FILE"
 
-                  TEST_NAME=$(basename "$TEST_FILE" .c)
-                  TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
-                  COVERAGE_DIR="coverage"
+          TEST_NAME=$(basename "$TEST_FILE" .c)
+          TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
+          COVERAGE_DIR="coverage"
 
-                  mkdir -p "$COVERAGE_DIR"
+          rm -rf "$COVERAGE_DIR"
+          mkdir -p "$COVERAGE_DIR"
 
-                  echo "🔧 Compiling with coverage flags..."
-                  gcc -Wall -Wextra -I./src \
-                    --coverage \
-                    "$TEST_FILE" src/task_manager.c \
-                    -o "$TEST_BIN"
+          echo "🔧 Compiling with coverage flags..."
+          gcc -Wall -Wextra -I./src \
+            --coverage \
+            "$TEST_FILE" src/task_manager.c \
+            -o "$TEST_BIN"
 
-                  echo "▶ Running tests..."
-                  "$TEST_BIN"
+          echo "▶ Running tests..."
+          "$TEST_BIN"
 
-                  echo "📊 Collecting coverage..."
-                  lcov --capture \
-                    --directory . \
-                    --output-file "$COVERAGE_DIR/coverage.info"
+          echo "📊 Collecting coverage..."
+          lcov --capture \
+            --directory . \
+            --output-file "$COVERAGE_DIR/coverage.info"
 
-                  lcov --remove "$COVERAGE_DIR/coverage.info" \
-                    '/usr/*' \
-                    '*/test/*' \
-                    --output-file "$COVERAGE_DIR/coverage.cleaned.info"
+          lcov --remove "$COVERAGE_DIR/coverage.info" \
+            '/usr/*' \
+            '*/test/*' \
+            --output-file "$COVERAGE_DIR/coverage.cleaned.info"
 
-                  genhtml "$COVERAGE_DIR/coverage.cleaned.info" \
-                    --output-directory "$COVERAGE_DIR/html"
+          genhtml "$COVERAGE_DIR/coverage.cleaned.info" \
+            --output-directory "$COVERAGE_DIR/html"
 
-                  echo "✅ Coverage report generated"
-                '''
-            }
-        }
+          echo "✅ Coverage report generated at $COVERAGE_DIR/html/index.html"
+        '''
+    }
+}
+
 
         stage('Compile Application') {
             steps {
