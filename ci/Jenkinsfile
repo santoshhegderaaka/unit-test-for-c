@@ -84,11 +84,10 @@ stage('Setup Node 22') {
 
   node -v
   npm -v
-export COPILOT_MODEL=GPT-5 mini
-export CI=true
 
-  chmod +x scripts/generate-spec-tests.sh
-  node src/generate-c-tests.mjs --src src/task_manager.c
+
+  chmod +x scripts/generate-c-tests.mjs
+  node scripts/generate-c-tests.mjs --src src/task_manager.c
 '''
                 }
             }
