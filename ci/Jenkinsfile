@@ -104,55 +104,53 @@ stage('Setup Node 22') {
             }
         }
 
-       stage('Compile & Run Unit Tests with Coverage') {
+      stage('Compile & Run Unit Tests with Coverage') {
     steps {
         sh '''
           set -e
           echo "Running unit tests with coverage..."
 
-          TEST_FILE="test/task_manager.test.c"
-          TEST_NAME="task_manager"
-          TEST_BIN="${BUILD_DIR}/${TEST_NAME}.test"
+          TEST_FILE=$(ls test/*task_manager*.c | head -n 1)
+
+          if [ ! -f "$TEST_FILE" ]; then
+            echo "❌ task_manager test file not found"
+            exit 1
+          fi
+
+          TEST_NAME=$(basename "$TEST_FILE" .c)
+          TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
           COVERAGE_DIR="coverage"
 
-          rm -rf ${COVERAGE_DIR}
-          mkdir -p ${COVERAGE_DIR}
+          rm -rf "$COVERAGE_DIR"
+          mkdir -p "$COVERAGE_DIR"
 
           echo "Compiling with coverage flags..."
-
           gcc -Wall -Wextra -I./src \
             --coverage \
             "$TEST_FILE" src/task_manager.c \
             -o "$TEST_BIN"
 
-          echo "Executing test binary..."
+          echo "Running tests..."
           "$TEST_BIN"
 
-          echo "Capturing coverage data..."
-
+          echo "Collecting coverage..."
           lcov --capture \
-               --directory . \
-               --output-file ${COVERAGE_DIR}/coverage.info
+            --directory . \
+            --output-file "$COVERAGE_DIR/coverage.info"
 
-          lcov --remove ${COVERAGE_DIR}/coverage.info \
-               '/usr/*' \
-               '*test*' \
-               --output-file ${COVERAGE_DIR}/coverage.filtered.info
+          lcov --remove "$COVERAGE_DIR/coverage.info" \
+            '/usr/*' \
+            '*/test/*' \
+            --output-file "$COVERAGE_DIR/coverage.cleaned.info"
 
-          genhtml ${COVERAGE_DIR}/coverage.filtered.info \
-                  --output-directory ${COVERAGE_DIR}/html
+          genhtml "$COVERAGE_DIR/coverage.cleaned.info" \
+            --output-directory "$COVERAGE_DIR/html"
 
-          echo "Generating JUnit report..."
-
-          cat > ${TEST_REPORT_DIR}/${TEST_NAME}.xml <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="task_manager_tests" tests="1" failures="0">
-  <testcase classname="task_manager" name="AllTestsPassed"/>
-</testsuite>
-EOF
+          echo "Coverage report generated at $COVERAGE_DIR/html/index.html"
         '''
     }
 }
+
 
 
         stage('Compile Application') {
@@ -165,18 +163,18 @@ EOF
             }
         }
 
-      stage('Publish Coverage Report') {
+  stage('Publish Coverage Report') {
     steps {
         publishHTML([
-            reportName: 'C Coverage Report',
             reportDir: 'coverage/html',
             reportFiles: 'index.html',
+            reportName: 'C Coverage Report',
             keepAll: true,
-            alwaysLinkToLastBuild: true,
-            allowMissing: false
+            alwaysLinkToLastBuild: true
         ])
     }
 }
+
 
 
         stage('Deploy (Local)') {
