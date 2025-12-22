@@ -19,55 +19,45 @@ pipeline {
             }
         }
 
-   stage('Verify Build Tools') {
-    steps {
-        sh '''
-          set -e
-          command -v gcc
-          command -v lcov
-          command -v gcov
-          gcc --version
-          lcov --version
-        '''
-    }
-}
-
-
+        stage('Verify Build Tools') {
+            steps {
+                sh '''
+                  set -e
+                  command -v gcc
+                  command -v lcov
+                  command -v gcov
+                  gcc --version
+                  lcov --version
+                '''
+            }
+        }
 
         stage('Install nvm (if not exists)') {
             steps {
                 sh '''
                   set -e
-
                   if [ ! -d "$NVM_DIR" ]; then
-                    echo "Installing nvm..."
                     curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-                  else
-                    echo "nvm already installed"
                   fi
-
                   export NVM_DIR="$HOME/.nvm"
-                  [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-
+                  . "$NVM_DIR/nvm.sh"
                   nvm --version
                 '''
             }
         }
-stage('Setup Node 22') {
-  steps {
-    sh '''
-      export NVM_DIR="$HOME/.nvm"
-      [ -s "$NVM_DIR/nvm.sh" ] || curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-      . "$NVM_DIR/nvm.sh"
-      nvm install 22
-      nvm use 22
-      node -v
-      npm -v
-    '''
-  }
-}
 
-
+        stage('Setup Node 22') {
+            steps {
+                sh '''
+                  export NVM_DIR="$HOME/.nvm"
+                  . "$NVM_DIR/nvm.sh"
+                  nvm install 22
+                  nvm use 22
+                  node -v
+                  npm -v
+                '''
+            }
+        }
 
         stage('Generate Unit Tests') {
             when {
@@ -77,20 +67,14 @@ stage('Setup Node 22') {
                 withCredentials([
                     string(credentialsId: 'GITHUB_TOKEN', variable: 'GITHUB_TOKEN')
                 ]) {
-                sh '''
-  export NVM_DIR="$HOME/.nvm"
-  . "$NVM_DIR/nvm.sh"
+                    sh '''
+                      export NVM_DIR="$HOME/.nvm"
+                      . "$NVM_DIR/nvm.sh"
+                      nvm use 22
 
-  nvm install 22
-  nvm use 22
-
-  node -v
-  npm -v
-
-
-  chmod +x scripts/generate-c-tests.mjs
-  node scripts/generate-c-tests.mjs --src src/task_manager.c
-'''
+                      chmod +x scripts/generate-c-tests.mjs
+                      node scripts/generate-c-tests.mjs --src src/task_manager.c
+                    '''
                 }
             }
         }
@@ -104,54 +88,56 @@ stage('Setup Node 22') {
             }
         }
 
-      stage('Compile & Run Unit Tests with Coverage') {
-    steps {
-        sh '''
-          set -e
-          echo "Running unit tests with coverage..."
+        stage('Compile & Run Unit Tests with Coverage') {
+            steps {
+                sh '''
+                  set -e
+                  echo "Running unit tests with coverage..."
 
-          TEST_FILE=$(ls test/*task_manager*.c | head -n 1)
+                  echo "📂 Contents of test directory:"
+                  ls -l test || true
 
-          if [ ! -f "$TEST_FILE" ]; then
-            echo "❌ task_manager test file not found"
-            exit 1
-          fi
+                  TEST_FILE=$(ls test/*.c 2>/dev/null | grep task_manager | head -n 1)
 
-          TEST_NAME=$(basename "$TEST_FILE" .c)
-          TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
-          COVERAGE_DIR="coverage"
+                  if [ -z "$TEST_FILE" ]; then
+                    echo "❌ task_manager test file not found"
+                    exit 1
+                  fi
 
-          rm -rf "$COVERAGE_DIR"
-          mkdir -p "$COVERAGE_DIR"
+                  echo "✅ Using test file: $TEST_FILE"
 
-          echo "Compiling with coverage flags..."
-          gcc -Wall -Wextra -I./src \
-            --coverage \
-            "$TEST_FILE" src/task_manager.c \
-            -o "$TEST_BIN"
+                  TEST_NAME=$(basename "$TEST_FILE" .c)
+                  TEST_BIN="${BUILD_DIR}/${TEST_NAME}"
+                  COVERAGE_DIR="coverage"
 
-          echo "Running tests..."
-          "$TEST_BIN"
+                  mkdir -p "$COVERAGE_DIR"
 
-          echo "Collecting coverage..."
-          lcov --capture \
-            --directory . \
-            --output-file "$COVERAGE_DIR/coverage.info"
+                  echo "🔧 Compiling with coverage flags..."
+                  gcc -Wall -Wextra -I./src \
+                    --coverage \
+                    "$TEST_FILE" src/task_manager.c \
+                    -o "$TEST_BIN"
 
-          lcov --remove "$COVERAGE_DIR/coverage.info" \
-            '/usr/*' \
-            '*/test/*' \
-            --output-file "$COVERAGE_DIR/coverage.cleaned.info"
+                  echo "▶ Running tests..."
+                  "$TEST_BIN"
 
-          genhtml "$COVERAGE_DIR/coverage.cleaned.info" \
-            --output-directory "$COVERAGE_DIR/html"
+                  echo "📊 Collecting coverage..."
+                  lcov --capture \
+                    --directory . \
+                    --output-file "$COVERAGE_DIR/coverage.info"
 
-          echo "Coverage report generated at $COVERAGE_DIR/html/index.html"
-        '''
-    }
-}
+                  lcov --remove "$COVERAGE_DIR/coverage.info" \
+                    '/usr/*' \
+                    '*/test/*' \
+                    --output-file "$COVERAGE_DIR/coverage.cleaned.info"
 
+                  genhtml "$COVERAGE_DIR/coverage.cleaned.info" \
+                    --output-directory "$COVERAGE_DIR/html"
 
+                  echo "✅ Coverage report generated"
+                '''
+            }
+        }
 
         stage('Compile Application') {
             steps {
@@ -163,26 +149,23 @@ stage('Setup Node 22') {
             }
         }
 
-stage('Publish Coverage Report') {
-    steps {
-        publishHTML([
-            allowMissing: false,
-            alwaysLinkToLastBuild: true,
-            keepAll: true,
-            reportDir: 'coverage/html',
-            reportFiles: 'index.html',
-            reportName: 'C Coverage Report'
-        ])
-    }
-}
-
-
+        stage('Publish Coverage Report') {
+            steps {
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'coverage/html',
+                    reportFiles: 'index.html',
+                    reportName: 'C Coverage Report'
+                ])
+            }
+        }
 
         stage('Deploy (Local)') {
             steps {
                 sh '''
                   mkdir -p ${DEPLOY_DIR}
-
                   rsync -av --delete \
                     --exclude=.git \
                     --exclude=test \
@@ -190,7 +173,6 @@ stage('Publish Coverage Report') {
                     ./ ${DEPLOY_DIR}/
 
                   cp ${BUILD_DIR}/${BIN_NAME} ${DEPLOY_DIR}/
-
                   pkill -f ${BIN_NAME} || true
                   nohup ${DEPLOY_DIR}/${BIN_NAME} > ${DEPLOY_DIR}/app.log 2>&1 &
                 '''
@@ -200,7 +182,7 @@ stage('Publish Coverage Report') {
 
     post {
         success {
-            echo "✅ Build, Test, and Deploy completed successfully"
+            echo "✅ Build, Test, Coverage, and Deploy completed successfully"
         }
         failure {
             echo "❌ Pipeline failed"
