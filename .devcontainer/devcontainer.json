@@ -1,0 +1,8 @@
+{
+  "name": "Jenkins Codespace",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "jenkins",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [8080],
+  "postCreateCommand": "echo 'Jenkins ready'"
+}
