@@ -1,8 +1,9 @@
 {
-  "name": "Jenkins Codespace",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "jenkins",
-  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "name": "Jenkins-C-Codespace",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "forwardPorts": [8080],
-  "postCreateCommand": "echo 'Jenkins ready'"
+  "postCreateCommand": "bash .devcontainer/install-jenkins.sh",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  }
 }
