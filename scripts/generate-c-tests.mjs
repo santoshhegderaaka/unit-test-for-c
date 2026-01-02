@@ -70,6 +70,7 @@ function extractCTestCode(text) {
 
 async function callGitHubModels({ token, model, messages, temperature = 0.2, max_tokens = 3500 }) {
   // Official endpoint as shown in GitHub Models inference docs. :contentReference[oaicite:2]{index=2}
+  console.log(`Calling GitHub Models API with model=${model} temperature=${temperature} max_tokens=${max_tokens} token=${token}`);
   const url = "https://models.github.ai/inference/chat/completions";
 
   const res = await fetch(url, {
